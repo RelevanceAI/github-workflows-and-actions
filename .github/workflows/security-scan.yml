@@ -19,17 +19,18 @@ on:
       aws-ecr-repository-name:
         required: true
         type: string  
-      docker-file-name:
+      docker-context:
         required: false
         type: string
-        default: 'Dockerfile'
+        default: '.'
       docker-arch:
         required: false
         type: string
         default: 'linux/amd64'
       docker-file-path:
         required: true
-        type: string      
+        type: string
+        default: 'Dockerfile'
       docker-image-description:
         required: true
         type: string
@@ -101,8 +102,8 @@ jobs:
     - name: Build and tag docker image
       uses: docker/build-push-action@v3
       with:
-        context: ${{ inputs.docker-file-path }}/.
-        file: ${{ inputs.docker-file-path }}/${{ inputs.docker-file-name }}
+        context: ${{ inputs.docker-context }}
+        file: ${{ inputs.docker-file-path }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
         tags: ${{ steps.login-ecr.outputs.registry }}/${{ inputs.aws-ecr-repository-name }}:${{ needs.generate-version.outputs.version_number }}
