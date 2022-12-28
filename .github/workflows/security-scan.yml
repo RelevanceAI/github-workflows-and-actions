@@ -6,6 +6,9 @@ on:
       wiz-client-id:
         required: true
         type: string
+      wiz-tag:
+        required: true
+        type: string
       aws-access-key-id:
         required: true
         type: string
@@ -111,4 +114,4 @@ jobs:
         set -u
         curl -o wizcli https://wizcli.app.wiz.io/wizcli && chmod +x wizcli
         ./wizcli auth --id "${{ inputs.wiz-client-id }}" --secret "$WIZ_CLIENT_SECRET"
-        ./wizcli docker scan --image ${{ steps.login-ecr.outputs.registry }}/${{ inputs.aws-ecr-repository-name }}:${{ needs.generate-version.outputs.version_number }} --tag svc=${{ inputs.aws-ecr-repository-name }}
+        ./wizcli docker scan --image ${{ steps.login-ecr.outputs.registry }}/${{ inputs.aws-ecr-repository-name }}:${{ needs.generate-version.outputs.version_number }} --tag svc=${{ inputs.wiz-tag }}
