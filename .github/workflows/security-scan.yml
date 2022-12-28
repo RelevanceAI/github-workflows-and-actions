@@ -28,7 +28,7 @@ on:
         type: string
         default: 'linux/amd64'
       docker-file-path:
-        required: true
+        required: false
         type: string
         default: 'Dockerfile'
       docker-image-description:
