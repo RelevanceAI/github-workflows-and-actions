@@ -25,11 +25,8 @@ on:
         default: 'Dockerfile'
       docker-arch:
         required: false
-        type: choice
+        type: string
         default: 'linux/amd64'
-        options:
-        - 'linux/amd64'
-        - 'linux/arm64'
       docker-file-path:
         required: true
         type: string      
