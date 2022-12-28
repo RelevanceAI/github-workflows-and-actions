@@ -41,7 +41,10 @@ on:
 
 jobs:    
   generate-version:
-    runs-on: ubuntu-latest
+    runs-on:
+    - self-hosted
+    - amd64
+    - v2
     outputs:
       version_number: ${{ steps.version.outputs.version_number }}
     steps:
@@ -73,7 +76,10 @@ jobs:
 
   wiz-scan:
     needs: generate-version
-    runs-on: ubuntu-latest
+    runs-on:
+    - self-hosted
+    - amd64
+    - v2
     name: "Perform scan of ${{ inputs.docker-image-description }} docker image with Wiz"
     steps:
     - name: Checkout
