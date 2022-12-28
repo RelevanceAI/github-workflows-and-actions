@@ -1,0 +1,114 @@
+name: "Perform security scan"
+
+on: 
+  workflow_call:
+    inputs:
+      wiz-client-id:
+        required: true
+        type: string
+      aws-access-key-id:
+        required: true
+        type: string
+      aws-region:
+        required: false
+        type: string
+        default: 'ap-southeast-2'
+      aws-ecr-repository-name:
+        required: true
+        type: string  
+      docker-file-name:
+        required: false
+        type: string
+        default: 'Dockerfile'
+      docker-arch:
+        required: false
+        type: choice
+        default: 'linux/amd64'
+        options:
+        - 'linux/amd64'
+        - 'linux/arm64'
+      docker-file-path:
+        required: true
+        type: string      
+      docker-image-description:
+        required: true
+        type: string
+    secrets:
+      wiz-client-secret:
+        required: true
+      aws-secret-access-key:
+        required: true
+
+jobs:    
+  generate-version:
+    runs-on: ubuntu-latest
+    outputs:
+      version_number: ${{ steps.version.outputs.version_number }}
+    steps:
+    - name: Generate version number
+      id: version
+      env:
+        EVENT_NAME: ${{ github.event_name }}
+        PR_SHA: ${{ github.event.pull_request.head.sha }}
+        REF_TYPE: ${{ github.ref_type }}
+        REF_NAME: ${{ github.ref_name }}
+      run: |
+        if [[ "$REF_TYPE" == "tag" ]]; then
+          version=${REF_NAME#v}
+        else
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            sha=${PR_SHA:0:7}
+          fi
+          if [[ "${EVENT_NAME}${REF_TYPE}" == "pushbranch" ]]; then
+            sha=${GITHUB_SHA:0:7}
+          fi
+          let days=($(date -d 'today 00:00:00' '+%s') - $(date -d '20220701 00:00:00' '+%s'))/86400
+          let seconds=($(date '+%s') - $(date -d 'today 00:00:00' '+%s'))
+          version="0.$days.$seconds-$sha"
+        fi
+        echo Version is $version
+        echo "version_number=$version" >> $GITHUB_OUTPUT
+  
+  # Security checks
+
+  wiz-scan:
+    needs: generate-version
+    runs-on: ubuntu-latest
+    name: "Perform scan of ${{ inputs.docker-image-description }} docker image with Wiz"
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v2
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v2
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ inputs.aws-access-key-id }}
+        aws-secret-access-key: ${{ secrets.aws-secret-access-key }}
+        aws-region: ${{ inputs.aws-region }}
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v1
+    - name: Build and tag docker image
+      uses: docker/build-push-action@v3
+      with:
+        context: ${{ inputs.docker-file-path }}/.
+        file: ${{ inputs.docker-file-path }}/${{ inputs.docker-file-name }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        tags: ${{ steps.login-ecr.outputs.registry }}/${{ inputs.aws-ecr-repository-name }}:${{ needs.generate-version.outputs.version_number }}
+        load: true
+        platforms: ${{ inputs.docker-arch }}
+    - name: Perform image security scan
+      env:
+        WIZ_CLIENT_SECRET: ${{ secrets.wiz-client-secret }}
+      run: |
+        #!/bin/bash
+        set -e
+        set -o pipefail
+        set -u
+        curl -o wizcli https://wizcli.app.wiz.io/wizcli && chmod +x wizcli
+        ./wizcli auth --id "${{ inputs.wiz-client-id }}" --secret "$WIZ_CLIENT_SECRET"
+        ./wizcli docker scan --image ${{ steps.login-ecr.outputs.registry }}/${{ matrix.aws-ecr-repo-name }}:${{ needs.generate-version.outputs.version_number }} --tag svc=${{ matrix.aws-ecr-repo-name }}
