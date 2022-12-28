@@ -1,0 +1,153 @@
+name: "Release service pipeline"
+
+on: 
+  workflow_call:
+    inputs:
+      aws-access-key-id:
+        required: true
+        type: string
+      aws-region:
+        required: false
+        type: string
+        default: 'ap-southeast-2'
+      aws-ecr-repository-name:
+        required: true
+        type: string
+      docker-context:
+        required: false
+        type: string
+        default: '.'
+      docker-file-path:
+        required: false
+        type: string
+        default: 'Dockerfile'
+      docker-arch:
+        required: false
+        type: string
+        default: 'linux/amd64'
+      octopus-package-name:
+        required: true
+        type: string
+      octopus-url:
+        required: true
+        type: string
+      private-github-runner-arch:
+        required: false
+        type: string
+        default: 'amd64'
+    secrets:
+      aws-secret-access-key:
+        required: true
+      octopus-api-key:
+        required: true
+
+jobs:    
+  generate-version:
+    name: Generate version number
+    runs-on:
+    - self-hosted
+    - amd64
+    - v2
+    outputs:
+      version_number: ${{ steps.version.outputs.version_number }}
+    steps:
+    - name: Generate version number
+      id: version
+      env:
+        EVENT_NAME: ${{ github.event_name }}
+        PR_SHA: ${{ github.event.pull_request.head.sha }}
+        REF_TYPE: ${{ github.ref_type }}
+        REF_NAME: ${{ github.ref_name }}
+      run: |
+        #!/bin/bash
+        set -Eeuo pipefail
+        if [[ "$REF_TYPE" == "tag" ]]; then
+          version=${REF_NAME#v}
+        else
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            sha=${PR_SHA:0:7}
+          fi
+          if [[ "${EVENT_NAME}${REF_TYPE}" == "pushbranch" ]]; then
+            sha=${GITHUB_SHA:0:7}
+          fi
+          let days=($(date -d 'today 00:00:00' '+%s') - $(date -d '20220701 00:00:00' '+%s'))/86400
+          let seconds=($(date '+%s') - $(date -d 'today 00:00:00' '+%s'))
+          version="0.$days.$seconds-$sha"
+        fi
+        echo Version is $version
+        echo "version_number=$version" >> $GITHUB_OUTPUT
+
+  push-docker-image:
+    name: "Push docker image to ECR"
+    runs-on:
+    - self-hosted
+    - ${{ inputs.private-github-runner-arch }}
+    - v2
+    needs: generate-version
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v2
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v2
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ inputs.aws-access-key-id }}
+        aws-secret-access-key: ${{ secrets.aws-secret-access-key }}
+        aws-region: ${{ inputs.aws-region }}
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v1
+    - name: Build, tag, and push image to Amazon ECR
+      uses: docker/build-push-action@v3
+      with:
+        context: ${{ inputs.docker-context }}
+        file: ${{ inputs.docker-file-path }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        tags: ${{ steps.login-ecr.outputs.registry }}/${{ inputs.aws-ecr-repository-name }}:${{ needs.generate-version.outputs.version_number }}
+        push: true
+        platforms: ${{ inputs.docker-arch }}
+
+  push-octopus-package:
+    name: "Push package to Octopus Deploy"
+    runs-on:
+    - self-hosted
+    - amd64
+    - v2
+    needs: [generate-version, push-docker-image]
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+    - name: Substitute values in helm chart
+      run: |
+        #!/bin/bash
+        set -Eeuo pipefail
+        # install yq tool
+        yq_version=v4.27.2
+        yq_binary_name=yq_linux_amd64
+        wget https://github.com/mikefarah/yq/releases/download/${yq_version}/${yq_binary_name} -O /usr/local/bin/yq && chmod +x /usr/local/bin/yq
+        cd "$(dirname "$(find ./ -type f -name Chart.yaml | head -1)")"
+        yq -i '.image.tag = "${{ needs.generate-version.outputs.version_number }}"' values.yaml
+        yq -i '.version = "${{ needs.generate-version.outputs.version_number }}"' Chart.yaml
+    - name: Archive artifacts
+      env:
+        PACKAGE_FILENAME: ${{ inputs.octopus-package-name }}.${{ needs.generate-version.outputs.version_number }}.zip
+      run: |
+        #!/bin/bash
+        set -Eeuo pipefail
+        cd infra
+        zip -qq -r ${PACKAGE_FILENAME} .
+    # https://octopus.com/docs/packaging-applications/build-servers/github-actions
+    - name: Push package to Octopus Deploy
+      uses: OctopusDeploy/push-package-action@v3
+      env:
+        OCTOPUS_API_KEY: ${{ secrets.octopus-api-key }}
+        OCTOPUS_URL: ${{ inputs.octopus-url }}
+        OCTOPUS_SPACE: 'Default'
+        PACKAGE_FILENAME: ${{ inputs.octopus-package-name }}.${{ needs.generate-version.outputs.version_number }}.zip
+      with:
+        packages: |
+          infra/${PACKAGE_FILENAME}
