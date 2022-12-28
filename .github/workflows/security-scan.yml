@@ -81,6 +81,7 @@ jobs:
     - amd64
     - v2
     name: "Perform scan of ${{ inputs.docker-image-description }} docker image with Wiz"
+    continue-on-error: false
     steps:
     - name: Checkout
       uses: actions/checkout@v3
