@@ -147,6 +147,6 @@ jobs:
         server: ${{ inputs.octopus-url }}
         api_key: ${{ secrets.octopus-api-key }}
         space: Default
-        overwrite_mode: OverwriteExisting
+        overwrite_mode: IgnoreIfExists
         packages: |
           infra/${{ inputs.octopus-package-name }}.${{ needs.generate-version.outputs.version_number }}.zip
