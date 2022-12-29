@@ -140,6 +140,8 @@ jobs:
         set -Eeuo pipefail
         cd infra
         zip -qq -r ${PACKAGE_FILENAME} .
+        echo ${PACKAGE_FILENAME}
+        ls -la
     # https://octopus.com/docs/packaging-applications/build-servers/github-actions
     - name: Push package to Octopus Deploy
       uses: OctopusDeploy/push-package-action@v3
@@ -150,4 +152,4 @@ jobs:
         PACKAGE_FILENAME: ${{ inputs.octopus-package-name }}.${{ needs.generate-version.outputs.version_number }}.zip
       with:
         packages: |
-          infra/${PACKAGE_FILENAME}
+          ./infra/${PACKAGE_FILENAME}
