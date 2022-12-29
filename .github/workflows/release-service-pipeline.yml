@@ -145,11 +145,10 @@ jobs:
     # https://octopus.com/docs/packaging-applications/build-servers/github-actions
     - name: Push package to Octopus Deploy
       uses: OctopusDeploy/push-package-action@v3
-      env:
-        OCTOPUS_API_KEY: ${{ secrets.octopus-api-key }}
-        OCTOPUS_URL: ${{ inputs.octopus-url }}
-        OCTOPUS_SPACE: 'Default'
-        PACKAGE_FILENAME: ${{ inputs.octopus-package-name }}.${{ needs.generate-version.outputs.version_number }}.zip
       with:
+        server: ${{ inputs.octopus-url }}
+        api_key: ${{ secrets.octopus-api-key }}
+        space: Default
+        overwrite_mode: OverwriteExisting
         packages: |
-          ./infra/${PACKAGE_FILENAME}
+          infra/${{ inputs.octopus-package-name }}.${{ needs.generate-version.outputs.version_number }}.zip
