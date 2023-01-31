@@ -64,12 +64,13 @@ jobs:
         if [[ "$REF_TYPE" == "tag" ]]; then
           version=${REF_NAME#v}
         else
+          sha=${GITHUB_SHA:0:7}
           if [[ "$EVENT_NAME" == "pull_request" ]]; then
             sha=${PR_SHA:0:7}
           fi
-          if [[ "${EVENT_NAME}${REF_TYPE}" == "pushbranch" ]]; then
-            sha=${GITHUB_SHA:0:7}
-          fi
+          # if [[ "${EVENT_NAME}${REF_TYPE}" == "pushbranch" ]]; then
+          #   sha=${GITHUB_SHA:0:7}
+          # fi
           let days=($(date -d 'today 00:00:00' '+%s') - $(date -d '20220701 00:00:00' '+%s'))/86400
           let seconds=($(date '+%s') - $(date -d 'today 00:00:00' '+%s'))
           version="0.$days.$seconds-$sha"
