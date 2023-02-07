@@ -34,6 +34,10 @@ on:
       docker-image-description:
         required: true
         type: string
+      docker-image-tag:
+        required: false
+        type: string
+        default: '[version]'
     secrets:
       wiz-client-secret:
         required: true
@@ -100,6 +104,14 @@ jobs:
     - name: Login to Amazon ECR
       id: login-ecr
       uses: aws-actions/amazon-ecr-login@v1
+    - name: Prepare docker image tag
+      run: |
+        #!/bin/bash
+        set -Eeuo pipefail
+        image_tag=${{ inputs.docker-image-tag }}
+        image_tag=${image_tag/\[version\]/${{ needs.generate-version.outputs.version_number }}}
+        echo Image tag is $image_tag
+        echo "image_tag=$image_tag" >> $GITHUB_ENV
     - name: Build and tag docker image
       uses: docker/build-push-action@v3
       with:
@@ -107,7 +119,7 @@ jobs:
         file: ${{ inputs.docker-file-path }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
-        tags: ${{ steps.login-ecr.outputs.registry }}/${{ inputs.aws-ecr-repository-name }}:${{ needs.generate-version.outputs.version_number }}
+        tags: ${{ steps.login-ecr.outputs.registry }}/${{ inputs.aws-ecr-repository-name }}:${{ env.image_tag }}
         load: true
         platforms: ${{ inputs.docker-arch }}
     - name: Perform image security scan
@@ -120,4 +132,4 @@ jobs:
         set -u
         curl -o wizcli https://wizcli.app.wiz.io/wizcli && chmod +x wizcli
         ./wizcli auth --id "${{ inputs.wiz-client-id }}" --secret "$WIZ_CLIENT_SECRET"
-        ./wizcli docker scan --image ${{ steps.login-ecr.outputs.registry }}/${{ inputs.aws-ecr-repository-name }}:${{ needs.generate-version.outputs.version_number }} --tag svc=${{ inputs.wiz-tag }}
+        ./wizcli docker scan --image ${{ steps.login-ecr.outputs.registry }}/${{ inputs.aws-ecr-repository-name }}:${{ env.image_tag }} --tag svc=${{ inputs.wiz-tag }}
