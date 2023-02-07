@@ -110,6 +110,7 @@ jobs:
         set -Eeuo pipefail
         image_tag=${{ inputs.docker-image-tag }}
         image_tag=${image_tag/\[version\]/${{ needs.generate-version.outputs.version_number }}}
+        # remove after it is thoroughly tested
         echo Image tag is $image_tag
         echo "image_tag=$image_tag" >> $GITHUB_ENV
     - name: Build and tag docker image
