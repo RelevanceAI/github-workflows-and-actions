@@ -31,6 +31,16 @@ on:
       octopus-url:
         required: true
         type: string
+      octopus-project:
+        required: false
+        type: string
+      octopus-tenant:
+        required: false
+        type: string
+      auto-deploy:
+        required: false
+        type: boolean
+        default: false
       private-github-runner-arch:
         required: false
         type: string
@@ -148,5 +158,32 @@ jobs:
         server: ${{ inputs.octopus-url }}
         api_key: ${{ secrets.octopus-api-key }}
         space: Default
+        overwrite_mode: OverwriteExisting
         packages: |
           infra/${{ inputs.octopus-package-name }}.${{ needs.generate-version.outputs.version_number }}.zip
+    - name: Create release in Octopus Deploy
+      if: |
+        fromJson(inputs.auto-deploy) && 
+        (github.ref == 'refs/heads/development' || github.ref_type == 'tag')
+      if: fromJson(inputs.auto-deploy)
+      uses: OctopusDeploy/create-release-action@v3
+      with:
+        server: ${{ inputs.octopus-url }}
+        api_key: ${{ secrets.octopus-api-key }}
+        space: Default
+        project: ${{ inputs.octopus-project }}
+        ignore_existing: true
+    - name: Deploy release to Development environment
+      if: |
+        fromJson(inputs.auto-deploy) && 
+        (github.ref == 'refs/heads/development' || github.ref_type == 'tag')
+      uses: OctopusDeploy/deploy-release-tenanted-action@v3.0.2
+      with:
+        server: ${{ inputs.octopus-url }}
+        api_key: ${{ secrets.octopus-api-key }}
+        space: Default
+        project: ${{ inputs.octopus-project }}
+        release_number: ${{ needs.generate-version.outputs.version_number }}
+        environment: "Development"
+        tenants: |
+          ${{ inputs.octopus-tenant }}
