@@ -118,8 +118,10 @@ jobs:
       with:
         context: ${{ inputs.docker-context }}
         file: ${{ inputs.docker-file-path }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
+        # cache-from: type=gha
+        # cache-to: type=gha,mode=max
+        cache-from: type=local,src=/vagrant/cache
+        cache-to: type=local,dest=/vagrant/cache
         tags: ${{ steps.login-ecr.outputs.registry }}/${{ inputs.aws-ecr-repository-name }}:${{ env.image_tag }}
         load: true
         platforms: ${{ inputs.docker-arch }}
