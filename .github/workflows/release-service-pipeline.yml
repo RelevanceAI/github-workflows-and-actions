@@ -165,7 +165,6 @@ jobs:
       if: |
         fromJson(inputs.auto-deploy) && 
         (github.ref == 'refs/heads/development' || github.ref_type == 'tag')
-      if: fromJson(inputs.auto-deploy)
       uses: OctopusDeploy/create-release-action@v3
       with:
         server: ${{ inputs.octopus-url }}
