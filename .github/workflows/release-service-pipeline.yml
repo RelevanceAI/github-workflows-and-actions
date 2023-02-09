@@ -174,6 +174,8 @@ jobs:
         space: Default
         project: ${{ inputs.octopus-project }}
         ignore_existing: true
+        release_number: ${{ needs.generate-version.outputs.version_number }}
+        package_version: ${{ needs.generate-version.outputs.version_number }}
     - name: Deploy release to Development environment
       if: |
         fromJson(inputs.auto-deploy) && 
