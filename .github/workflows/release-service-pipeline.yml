@@ -112,8 +112,8 @@ jobs:
         file: ${{ inputs.docker-file-path }}
         # cache-from: type=gha
         # cache-to: type=gha,mode=max
-        cache-from: type=local,src=/vagrant/cache
-        cache-to: type=local,dest=/vagrant/cache
+        # cache-from: type=local,src=/vagrant/cache
+        # cache-to: type=local,dest=/vagrant/cache
         tags: ${{ steps.login-ecr.outputs.registry }}/${{ inputs.aws-ecr-repository-name }}:${{ needs.generate-version.outputs.version_number }}
         push: true
         platforms: ${{ inputs.docker-arch }}
